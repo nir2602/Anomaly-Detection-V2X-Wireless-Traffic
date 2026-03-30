@@ -15,15 +15,19 @@ class RandomForestCLS:
             
     
     def get_training_split(self, X, y, test_size=0.3, random_state=42):
-        X_train, _, y_train, _ = train_test_split(X, y, test_size=test_size, random_state=random_state)
+        X_train, _, y_train, _ = train_test_split(X, y, test_size=test_size, random_state=random_state, stratify = y)
         return X_train, y_train
 
     def get_testing_split(self, X, y, test_size=0.3, random_state=42):
-        _, X_test, _, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
+        _, X_test, _, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state, stratify = y)
         return X_test, y_test
 
     def train_random_forest(self, test_size=0.3):
         # Load datasets
+        dataset = get_dataset()
+        if dataset is None:
+            print("Failed to load dataset")
+            return
         X, y = get_dataset()
 
         # Split into training and testing sets

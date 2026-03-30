@@ -17,30 +17,46 @@ def load_dataset(file_path: str):
     except Exception as e:
         print(f"Error loading dataset: {e}")
         return None
+
+def clean_dataset(data: pd.DataFrame):
+    #Cleans the dataset before split
+    df = data.copy()
+    df.columns = df.columns.str.strip()
+    dropColumns = ['category', 'specific_class', 'ID']
+    dropExisting = [col for col in dropColumns if col in df.columns]
+    if (dropExisting):
+        df = df.drop(columns = dropExisting)
+    
+    #remove duplicate
+    df = df.drop_duplicates()
+
+    constantColumns = [col for col in df.columns if col != 'label' and df[col].nunique(dropna=False) <= 1]
+    if constantColumns:
+        df = df.drop(columns = constantColumns)
+        print(f"Removed constant col: {constantColumns}")
+        
+    df = df.dropna()
+    return df
     
 def process_benign_dataset(benign_data):
+    benign_data = clean_dataset(benign_data)
     X = benign_data.drop(columns=['label'])
+    X = X.select_dtypes(include=['number'])
     y = benign_data['label']
     
-    # dropping unnecessary columns
-    X = X.drop(columns=['category'])
-    X = X.drop(columns=['specific_class'])
-    
     # convert benign labels to 0 and DoS labels to 1
-    y = y.apply(lambda x: 0 if x == 'BENIGN' else 1)
+    y = y.astype(str).str.strip().apply(lambda x: 0 if x.upper() == 'BENIGN' else 1)
         
     return X, y
 
 def process_dos_dataset(dos_data):
+    dos_data = clean_dataset(dos_data)
     X = dos_data.drop(columns=['label'])
+    X = X.select_dtypes(include=['number'])
     y = dos_data['label']
     
-    # dropping unnecessary columns
-    X = X.drop(columns=['category'])
-    X = X.drop(columns=['specific_class'])
-    
     # convert DoS labels to 1 and benign labels to 0
-    y = y.apply(lambda x: 1 if x == 'ATTACK' else 0)
+    y = y.astype(str).str.strip().apply(lambda x: 0 if x.upper() == 'BENIGN' else 1)
     
     return X, y
 
@@ -77,12 +93,36 @@ def random_combine_datasets(benign_X, benign_y, dos_X, dos_y):
     combined_X = pd.concat([benign_X, dos_X], ignore_index=True)
     combined_y = pd.concat([benign_y, dos_y], ignore_index=True)
     
+    combined = pd.concat([combined_X, combined_y.rename("label_binary")], axis = 1)
     # Shuffle the combined dataset
-    shuffled_indices = combined_X.sample(frac=1, random_state=42).index
-    X = combined_X.loc[shuffled_indices].reset_index(drop=True)
-    y = combined_y.loc[shuffled_indices].reset_index(drop=True)
+    combined = combined.sample(frac = 1, random_state=42).reset_index(drop = True)
+    X = combined.drop(columns = ['label_binary'])
+    y = combined['label_binary']
     
     return X, y
+
+def remove_cross_duplicates(X, y):
+    #removes identical rows that appear with different labels
+    combined = X.copy()
+    combined['label_binary'] = y.values
+
+    duplicated_features = combined.drop(columns=['label_binary']).duplicated(keep=False)
+    possible_conflicts = combined[duplicated_features]
+
+    if not possible_conflicts.empty:
+        grouped = possible_conflicts.groupby(list(X.columns))['label_binary'].nunique()
+        conflicting_index = grouped[grouped > 1].index
+
+        if len(conflicting_index) > 0:
+            feature_only = combined.drop(columns=['label_binary'])
+            mask = feature_only.apply(tuple, axis=1).isin(conflicting_index)
+            removed_count = mask.sum()
+            combined = combined.loc[~mask].reset_index(drop=True)
+            print(f"Removed {removed_count} conflicting duplicate rows across classes.")
+
+    X_clean = combined.drop(columns=['label_binary'])
+    y_clean = combined['label_binary']
+    return X_clean, y_clean
 
 def get_dataset() -> None | tuple[pd.DataFrame, pd.Series]:
     """
@@ -107,6 +147,12 @@ def get_dataset() -> None | tuple[pd.DataFrame, pd.Series]:
     dos_X, dos_y = process_dos_dataset(dos_data)
     
     X, y = random_combine_datasets(benign_X, benign_y, dos_X, dos_y)
+    X, y = remove_cross_duplicates(X, y)
+    print("Final columns:")
+    print(X.columns.tolist())
+    print(f"Final dataset shape: X = {X.shape}, y={y.shape}")
+    print("Distribution:")
+    print(y.value_counts())
     return X, y
 
 # For testing the dataset processing
