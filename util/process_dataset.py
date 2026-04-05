@@ -22,13 +22,15 @@ def clean_dataset(data: pd.DataFrame):
     #Cleans the dataset before split
     df = data.copy()
     df.columns = df.columns.str.strip()
+
     dropColumns = ['category', 'specific_class', 'ID']
     dropExisting = [col for col in dropColumns if col in df.columns]
+
     if (dropExisting):
         df = df.drop(columns = dropExisting)
-    
+
     #remove duplicate
-    df = df.drop_duplicates()
+    #df = df.drop_duplicates()
 
     constantColumns = [col for col in df.columns if col != 'label' and df[col].nunique(dropna=False) <= 1]
     if constantColumns:
@@ -38,29 +40,17 @@ def clean_dataset(data: pd.DataFrame):
     df = df.dropna()
     return df
     
-def process_benign_dataset(benign_data):
-    benign_data = clean_dataset(benign_data)
-    X = benign_data.drop(columns=['label'])
+def process_dataset(data: pd.DataFrame):
+    df = clean_dataset(data)
+    X = data.drop(columns=['label'])
     X = X.select_dtypes(include=['number'])
-    y = benign_data['label']
     
     # convert benign labels to 0 and DoS labels to 1
-    y = y.astype(str).str.strip().apply(lambda x: 0 if x.upper() == 'BENIGN' else 1)
+    y = df['label'].astype(str).str.strip().apply(lambda x: 0 if x.upper() == 'BENIGN' else 1)
         
     return X, y
 
-def process_dos_dataset(dos_data):
-    dos_data = clean_dataset(dos_data)
-    X = dos_data.drop(columns=['label'])
-    X = X.select_dtypes(include=['number'])
-    y = dos_data['label']
-    
-    # convert DoS labels to 1 and benign labels to 0
-    y = y.astype(str).str.strip().apply(lambda x: 0 if x.upper() == 'BENIGN' else 1)
-    
-    return X, y
-
-def combine_datasets(benign_X, benign_y, dos_X, dos_y):
+def combine_datasets(feature_sets, label_sets, shuffle = True, random_state = 42):
     """
     Combine benign and DoS datasets into a single dataset.
     
@@ -73,32 +63,17 @@ def combine_datasets(benign_X, benign_y, dos_X, dos_y):
     Returns:
         Tuple of combined features (X) and labels (y)
     """
-    X = pd.concat([benign_X, dos_X], ignore_index=True)
-    y = pd.concat([benign_y, dos_y], ignore_index=True)
-    return X, y
+    X = pd.concat(feature_sets, ignore_index=True)
+    y = pd.concat(label_sets, ignore_index=True)
 
-def random_combine_datasets(benign_X, benign_y, dos_X, dos_y):
-    """
-    Combine benign and DoS datasets into a single dataset with random shuffling.
-    
-    Args:
-        benign_X: Features from benign dataset
-        benign_y: Labels from benign dataset
-        dos_X: Features from DoS dataset
-        dos_y: Labels from DoS dataset
-    
-    Returns:
-        Tuple of combined features (X) and labels (y)
-    """
-    combined_X = pd.concat([benign_X, dos_X], ignore_index=True)
-    combined_y = pd.concat([benign_y, dos_y], ignore_index=True)
-    
-    combined = pd.concat([combined_X, combined_y.rename("label_binary")], axis = 1)
-    # Shuffle the combined dataset
-    combined = combined.sample(frac = 1, random_state=42).reset_index(drop = True)
-    X = combined.drop(columns = ['label_binary'])
-    y = combined['label_binary']
-    
+    if 'ID' in X.columns:
+        print("ID in dataset, removing")
+        X = X.drop(columns=['ID'])
+    if shuffle:
+        combined = pd.concat([X, y.rename("label_binary")], axis = 1)
+        combined = combined.sample(frac=1, random_state=random_state).reset_index(drop=True)
+        X = combined.drop(columns=['label_binary'])
+        y = combined['label_binary']
     return X, y
 
 def remove_cross_duplicates(X, y):
@@ -132,21 +107,41 @@ def get_dataset() -> None | tuple[pd.DataFrame, pd.Series]:
     Return:
         the combined features and labels as a tuple (X, y) if successful, or None if there was an error.
     """
-    benign_data = load_dataset('dataset/decimal_benign.csv')
-    dos_data = load_dataset('dataset/decimal_DoS.csv')
+    benign= 'dataset/decimal_benign.csv'
     
+    attack_files = [
+        'dataset/decimal_DoS.csv',
+        'dataset/decimal_spoofing-GAS.csv',
+        'dataset/decimal_spoofing-RPM.csv',
+        'dataset/decimal_spoofing-SPEED.csv',
+        'dataset/decimal_spoofing-STEERING_WHEEL.csv',
+    ]
+    benign_data = load_dataset(benign)
     if benign_data is None:
-        print("Failed to load benign dataset.")
+        print("Failed to load benign dataset")
         return None
     
-    if dos_data is None:
-        print("Failed to load DoS dataset.")
+    feature_sets = []
+    label_sets = []
+
+    benign_X, benign_y = process_dataset(benign_data)
+    feature_sets.append(benign_X)
+    label_sets.append(benign_y)
+
+    for file_path in attack_files:
+        attack_data = load_dataset(file_path)
+        if attack_data is None:
+            print(f"skip dataset: {file_path}")
+            continue
+        attack_X, attack_y = process_dataset(attack_data)
+        feature_sets.append(attack_X)
+        label_sets.append(attack_y)
+
+    if len(feature_sets) < 2:
+        print("No attack datasets loaded")
         return None
     
-    benign_X, benign_y = process_benign_dataset(benign_data)
-    dos_X, dos_y = process_dos_dataset(dos_data)
-    
-    X, y = random_combine_datasets(benign_X, benign_y, dos_X, dos_y)
+    X, y = combine_datasets(feature_sets, label_sets, shuffle=True, random_state = 42)
     X, y = remove_cross_duplicates(X, y)
     print("Final columns:")
     print(X.columns.tolist())
