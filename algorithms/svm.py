@@ -3,6 +3,9 @@ from sklearn.metrics import classification_report, accuracy_score, confusion_mat
 from sklearn.preprocessing import StandardScaler
 import time
 
+from util.plotting import plot, feature_importance
+
+
 class SVMCLS:
     classifier: SVC
     scaler: StandardScaler
@@ -31,6 +34,8 @@ class SVMCLS:
 
         print("SVM training complete")
         print(f"Training time: {end - start:.2f} seconds")
+        # feature_importance(self.classifier.classes_, X_train.columns, model_name="svm")
+        
 
     def predict(self, X_test):
         print("Scaling test data...")
@@ -44,3 +49,5 @@ class SVMCLS:
         print("Accuracy:", accuracy_score(y_test, y_pred))
         print("Confusion Matrix:")
         print(confusion_matrix(y_test, y_pred))
+        
+        plot(y_pred, y_test, model_name="svm")
