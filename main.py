@@ -3,6 +3,7 @@ from algorithms.decision_tree import DecisionTreeCLS
 from algorithms.svm import SVMCLS
 from sklearn.model_selection import train_test_split
 from util.process_dataset import get_dataset
+import os
 
 
 def main():
@@ -27,40 +28,45 @@ def main():
         
         X, y = dataset
 
-         # ===== TEMPORARY: SVM testing only =====
-        USE_SAMPLE = (choice == 2)  # only to test SVM
-
-        if USE_SAMPLE:
-            import pandas as pd
-            sample_size = 50000
-
-            df = pd.concat([X, y.rename("label_binary")], axis=1)
-
-            df = df.sample(n=sample_size, random_state=42)
-
-            X = df.drop(columns=["label_binary"])
-            y = df["label_binary"]
-
-            print(f"Using sample of size: {sample_size}")
-
         X_train, X_test, y_train, y_test = train_test_split(X,y,test_size = 0.3, random_state = 42, stratify = y)
 
+        print("Use saved model for inference if available? ([Y]/n)")
+        use_saved_model = input().strip().lower() != "n"
+        if use_saved_model:
+            print("Using saved model if available. If no saved model is found, a new model will be trained.")
+        else:
+            print("Training new model.")
             
         if choice == 1:
             rf_cls = RandomForestCLS()
-            rf_cls.train_random_forest(X_train, y_train)
+            rf_model_path = "models/random_forest_model.joblib"
+            if use_saved_model and os.path.exists(rf_model_path):
+                rf_cls.load_model(rf_model_path)
+            else:
+                rf_cls.train_random_forest(X_train, y_train)
+                rf_cls.save_model(rf_model_path)
             y_pred = rf_cls.predict(X_test)
             rf_cls.evaluate(y_pred, y_test)
             break
         elif choice == 2:
             svm_cls = SVMCLS()
-            svm_cls.train_svm(X_train, y_train)
+            svm_model_path = "models/svm_model.joblib"
+            if use_saved_model and os.path.exists(svm_model_path):
+                svm_cls.load_model(svm_model_path)
+            else:
+                svm_cls.train_svm(X_train, y_train)
+                svm_cls.save_model(svm_model_path)
             y_pred = svm_cls.predict(X_test)
             svm_cls.evaluate(y_pred, y_test)
             break 
         elif choice == 3:
             dt_cls = DecisionTreeCLS()
-            dt_cls.train_decision_tree(X_train, y_train)
+            dt_model_path = "models/decision_tree_model.joblib"
+            if use_saved_model and os.path.exists(dt_model_path):
+                dt_cls.load_model(dt_model_path)
+            else:
+                dt_cls.train_decision_tree(X_train, y_train)
+                dt_cls.save_model(dt_model_path)
             y_pred = dt_cls.predict(X_test)
             dt_cls.evaluate(y_pred, y_test)
             break

@@ -2,6 +2,8 @@
 
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
+import joblib
+import os
 
 from util.plotting import plot, feature_importance
 
@@ -12,7 +14,7 @@ class RandomForestCLS:
     classifier: RandomForestClassifier
     
     def __init__(self, n_estimators=100, random_state=42):
-        self.classifier = RandomForestClassifier(n_estimators=n_estimators, random_state=random_state, verbose=1, n_jobs=-1, class_weight="balanced")
+        self.classifier = RandomForestClassifier(n_estimators=n_estimators, random_state=random_state, class_weight="balanced")
             
     
     # def get_training_split(self, X, y, test_size=0.3, random_state=42):
@@ -36,6 +38,15 @@ class RandomForestCLS:
         print("Training complete.")
         print(f"Training time: {end_time - start_time:.2f} seconds")
         self.feature_importance(X_train)
+
+    def save_model(self, model_path="models/random_forest_model.joblib"):
+        os.makedirs(os.path.dirname(model_path), exist_ok=True)
+        joblib.dump(self.classifier, model_path)
+        print(f"Random Forest model saved to {model_path}")
+
+    def load_model(self, model_path="models/random_forest_model.joblib"):
+        self.classifier = joblib.load(model_path)
+        print(f"Random Forest model loaded from {model_path}")
         
     def predict(self, X_test):
         return self.classifier.predict(X_test)

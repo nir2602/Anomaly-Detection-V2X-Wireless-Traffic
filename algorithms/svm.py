@@ -1,6 +1,8 @@
 from sklearn.svm import SVC
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
 from sklearn.preprocessing import StandardScaler
+import joblib
+import os
 import time
 
 from util.plotting import plot, feature_importance
@@ -35,6 +37,21 @@ class SVMCLS:
         print("SVM training complete")
         print(f"Training time: {end - start:.2f} seconds")
         # feature_importance(self.classifier.classes_, X_train.columns, model_name="svm")
+
+    def save_model(self, model_path="models/svm_model.joblib"):
+        os.makedirs(os.path.dirname(model_path), exist_ok=True)
+        model_artifact = {
+            "classifier": self.classifier,
+            "scaler": self.scaler,
+        }
+        joblib.dump(model_artifact, model_path)
+        print(f"SVM model saved to {model_path}")
+
+    def load_model(self, model_path="models/svm_model.joblib"):
+        model_artifact = joblib.load(model_path)
+        self.classifier = model_artifact["classifier"]
+        self.scaler = model_artifact["scaler"]
+        print(f"SVM model loaded from {model_path}")
         
 
     def predict(self, X_test):

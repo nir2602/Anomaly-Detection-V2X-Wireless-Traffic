@@ -1,6 +1,8 @@
 from sklearn.tree import DecisionTreeClassifier
 #from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
+import joblib
+import os
 #from util.process_dataset import get_dataset
 import time
 
@@ -39,6 +41,15 @@ class DecisionTreeCLS:
         print(f"Training time: {end - start:.2f} seconds")
         feature_importance(self.classifier.feature_importances_, 
                            X_train.columns, model_name="decision_tree")
+
+    def save_model(self, model_path="models/decision_tree_model.joblib"):
+        os.makedirs(os.path.dirname(model_path), exist_ok=True)
+        joblib.dump(self.classifier, model_path)
+        print(f"Decision Tree model saved to {model_path}")
+
+    def load_model(self, model_path="models/decision_tree_model.joblib"):
+        self.classifier = joblib.load(model_path)
+        print(f"Decision Tree model loaded from {model_path}")
 
     def predict(self, X_test):
         return self.classifier.predict(X_test)
